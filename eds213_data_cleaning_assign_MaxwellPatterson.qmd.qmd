@@ -1,0 +1,99 @@
+---
+title: "EDS213 Assignment 2"
+author: "Maxwell Patterson"
+date: 2024-04-16
+format: html
+---
+
+```{r, include=FALSE}
+library(dplyr)
+library(tidyverse)
+library(here)
+```
+
+```{r}
+# Import the data
+snow_survey <- read_csv(here("data/raw/ASDN_Snow_survey.csv"))
+```
+```{r}
+# Clean the Snow_cover column
+snow_survey <- snow_survey %>%
+  mutate(Snow_cover = as.numeric(Snow_cover))
+```
+
+
+1. Clean the `Water_cover` column to transform it into the correct data type and respect expectations for a percentage
+
+```{r}
+# Clean the Water_cover column
+snow_survey <- snow_survey %>%
+  mutate(Water_cover = ifelse(Water_cover == ".", NA, Water_cover),
+         Water_cover = ifelse(Water_cover == "-", NA, Water_cover),
+         Water_cover = ifelse(Water_cover == "n/a", NA, Water_cover),
+         Water_cover = ifelse(Water_cover == "unk", NA, Water_cover),
+         Water_cover = as.numeric(Water_cover),
+         Water_cover = ifelse(Water_cover > 100, NA, Water_cover))
+
+# Decision: Replace ".", "-", "n/a", and "unk" with NA since they aren't valid percentage values
+# Decision: Convert Water_cover to numeric so its the right data type
+# Assumption: Water cover must be less than 100%
+```
+
+
+2. Clean the `Land_cover` column to transform it into the correct data type and respect expectations for a percentage
+
+```{r}
+# Clean the Land_cover column
+snow_survey <- snow_survey %>%
+  mutate(Land_cover = ifelse(Land_cover == ".", NA, Land_cover),
+         Land_cover = ifelse(Land_cover == "-", NA, Land_cover),
+         Land_cover = ifelse(Land_cover == "n/a", NA, Land_cover),
+         Land_cover = ifelse(Land_cover == "unk", NA, Land_cover),
+         Land_cover = as.numeric(Land_cover),
+         Land_cover = ifelse(Land_cover > 100, NA, Land_cover),
+         Land_cover = ifelse(Land_cover < 0, NA, Land_cover))
+
+# Decision: Replace ".", "-", "n/a", and "unk" with NA since they aren't valid percentage values
+# Decision: Convert Land_cover to numeric so its the right data type
+# Assumption: Land cover must be less than 100% and also greater than 0%
+
+```
+
+
+3. Use the relationship between the three cover columns (Snow, Water, Land) to infer missing values where possible and recompute the `Total_cover` column
+
+```{r}
+# Infer missing values and recalculate Total_cover
+snow_survey <- snow_survey %>%
+  rowwise() %>%
+  mutate(Total_cover = sum(c_across(Snow_cover:Land_cover), na.rm = TRUE),
+         Snow_cover = ifelse(is.na(Snow_cover) & Total_cover == 100, 100 - Water_cover - Land_cover, Snow_cover),
+         Water_cover = ifelse(is.na(Water_cover) & Total_cover == 100, 100 - Snow_cover - Land_cover, Water_cover),
+         Land_cover = ifelse(is.na(Land_cover) & Total_cover == 100, 100 - Snow_cover - Water_cover, Land_cover)) %>%
+  ungroup()
+
+# Decision: Recalculate Total_cover as the sum of Snow_cover, Water_cover, and Land_cover
+# Assumption: If Total_cover is 100 and one of the cover columns is missing, the missing value can be inferred to be 0 from the other two columns
+# Assumption: If Total_cover is not 100 or more than one cover column is missing then no inference is made, and missing values remain as NA
+```
+
+```{r}
+# Check if Total_cover equals the sum of Snow_cover, Water_cover, and Land_cover
+snow_survey <- snow_survey %>%
+  mutate(cover_sum = Snow_cover + Water_cover + Land_cover,
+         cover_match = ifelse(Total_cover == cover_sum, TRUE, FALSE))
+
+# Count the number of rows where Total_cover doesn't match the sum
+mismatch_count <- snow_survey %>%
+  filter(!cover_match) %>%
+  nrow()
+
+cat("Number of rows where Total_cover does not match the sum of individual covers:", mismatch_count, "\n")
+```
+
+```{r}
+# Write the cleaned data to a CSV
+write_csv(snow_survey, here("data/processed/all_cover_fixed_MaxwellPatterson.csv"))
+```
+
+

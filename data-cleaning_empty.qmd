@@ -186,11 +186,6 @@ species_long <- species_csv %>%
   )
 ```
 
-
-```{r}
-
-```
-
 We want to focus on the presence and absence of species and not the count. Let's create a new column for presence where anything else than 0 is considered present
 
 ```{r}
